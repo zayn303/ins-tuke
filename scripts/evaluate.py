@@ -21,7 +21,7 @@ _DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset]
 _DOMAIN_PATHS = [
     "Italian_Parkinsons_Voice_and_Speech/italian_parkinson",
     "Mobile Device Voice Recordings at King's College London (MDVR-KCL) from both early and advanced Parkinson's disease patients and healthy controls/Mobile Device Voice Recordings at King's College London (MDVR-KCL) from both",
-    "Voice Samples for Patients with Parkinson's Disease and Healthy Controls",
+    "Voice Samples for Patients with Parkinson’s Disease and Healthy Controls",
 ]
 
 
