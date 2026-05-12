@@ -1,0 +1,5 @@
+# @package _global_
+method_name: maml
+n_inner_steps: 5
+inner_lr: 0.01
+n_episodes_per_epoch: 100

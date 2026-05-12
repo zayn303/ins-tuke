@@ -1,0 +1,17 @@
+# Claude Code config
+.claude/
+CLAUDE.md
+openspec/
+
+# Datasets
+/Data/
+
+# Runtime artifacts
+checkpoints/
+outputs/
+wandb/
+mds/
+__pycache__/
+*.pyc
+*.pth
+.hydra/
