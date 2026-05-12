@@ -15,13 +15,10 @@ class VoiceSamplesAHDataset(PDDataset):
             "PD_AH": 1,
         }
         for outer_name, label in label_dirs.items():
-            # Try single-level first (root/HC_AH/*.wav), then double-level as fallback
-            outer = self.root / outer_name
+            # Dataset layout: root/HC_AH/HC_AH/*.wav  (double-nested by dataset convention)
+            outer = self.root / outer_name / outer_name
             if not outer.exists():
-                outer = self.root / outer_name / outer_name
-            if not outer.exists():
-                print(f"WARN VoiceSamplesAH: neither {self.root / outer_name} "
-                      f"nor {self.root / outer_name / outer_name} exists", file=sys.stderr)
+                print(f"WARN VoiceSamplesAH: {outer} not found", file=sys.stderr)
                 continue
             for wav in sorted(outer.glob("*.wav")):
                 m = _SUBJECT_RE.match(wav.name)
@@ -32,5 +29,6 @@ class VoiceSamplesAHDataset(PDDataset):
                     "subject_id": subject_id,
                 })
         if not self.samples:
-            print(f"WARN VoiceSamplesAH: 0 samples loaded from {self.root}. "
-                  f"Expected HC_AH/ and PD_AH/ subdirs with *.wav files.", file=sys.stderr)
+            root_contents = [p.name for p in sorted(self.root.iterdir())] if self.root.exists() else ["<root missing>"]
+            print(f"WARN VoiceSamplesAH: 0 samples from {self.root}. "
+                  f"Root contains: {root_contents}", file=sys.stderr)
