@@ -15,8 +15,6 @@ class VoiceSamplesAHDataset(PDDataset):
             "PD_AH": 1,
         }
         for outer_name, label in label_dirs.items():
-            # Try double-nested first (root/HC_AH/HC_AH/), then single-level (root/HC_AH/).
-            # Structure differs between local and cluster copies of this dataset.
             double = self.root / outer_name / outer_name
             single = self.root / outer_name
             if double.exists():
@@ -29,12 +27,16 @@ class VoiceSamplesAHDataset(PDDataset):
             for wav in sorted(outer.glob("*.wav")):
                 m = _SUBJECT_RE.match(wav.name)
                 subject_id = m.group(1) if m else wav.stem
-                self.samples.append({
+                self.recordings.append({
                     "path": str(wav),
                     "label": label,
                     "subject_id": subject_id,
+                    "recording_id": str(wav.relative_to(self.root)),
+                    "task_code": "AH",
                 })
-        if not self.samples:
+        if not self.recordings:
             root_contents = [p.name for p in sorted(self.root.iterdir())] if self.root.exists() else ["<root missing>"]
-            print(f"WARN VoiceSamplesAH: 0 samples from {self.root}. "
-                  f"Root contains: {root_contents}", file=sys.stderr)
+            print(
+                f"WARN VoiceSamplesAH: 0 recordings from {self.root}. Root contains: {root_contents}",
+                file=sys.stderr,
+            )

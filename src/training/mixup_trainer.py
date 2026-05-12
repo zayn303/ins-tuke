@@ -18,11 +18,14 @@ class MixupTrainer(BaseTrainer):
         n_batches = 0
 
         for batch in loader:
-            waveform = batch["waveform"].squeeze(1).to(self.device)
+            input_values = batch["input_values"].to(self.device)
+            attention_mask = batch.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(self.device)
             labels = batch["label"].float().to(self.device)  # soft mixed labels
 
             self.optimizer.zero_grad()
-            features = self.backbone(waveform)
+            features = self.backbone(input_values, attention_mask=attention_mask)
             logits = self.classifier(features).squeeze(-1)
             loss = self.criterion(logits, labels)
             loss.backward()

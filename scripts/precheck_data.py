@@ -1,4 +1,4 @@
-"""Verify all 3 dataset roots exist and load expected samples.
+"""Verify all dataset roots exist and load expected samples + segments.
 
 Run on login node before submitting SLURM:
     python scripts/precheck_data.py
@@ -6,7 +6,9 @@ Run on login node before submitting SLURM:
 
 Exits 1 if any domain has missing root or 0 samples.
 """
+import statistics
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -49,19 +51,33 @@ def main() -> int:
             print()
             continue
         ds = cls(root, sample_rate=16000, max_duration=10.0)
-        n = len(ds.samples)
-        print(f"  n_samples: {n}")
-        if n == 0:
-            print("  FAIL: 0 samples")
+        n_rec = len(ds.recordings)
+        n_seg = len(ds.segments)
+        print(f"  n_recordings: {n_rec}")
+        print(f"  n_segments:   {n_seg}")
+        if n_rec == 0:
+            print("  FAIL: 0 recordings")
             fail = True
             print()
             continue
-        n_pd = sum(s["label"] for s in ds.samples)
-        n_hc = n - n_pd
-        subjects = len({s["subject_id"] for s in ds.samples})
+        n_pd = sum(r["label"] for r in ds.recordings)
+        n_hc = n_rec - n_pd
+        subjects = len({r["subject_id"] for r in ds.recordings})
         print(f"  HC={n_hc}  PD={n_pd}  subjects={subjects}")
-        print(f"  first sample: {ds.samples[0]['path']}")
-        print(f"  last sample:  {ds.samples[-1]['path']}")
+
+        seg_per_rec = Counter(s["recording_id"] for s in ds.segments)
+        counts = list(seg_per_rec.values())
+        if counts:
+            print(
+                f"  seg-per-rec: median={statistics.median(counts)} "
+                f"min={min(counts)} max={max(counts)}"
+            )
+
+        task_counts = Counter(r.get("task_code", "") for r in ds.recordings)
+        print(f"  tasks: {dict(task_counts)}")
+
+        print(f"  first sample: {ds.recordings[0]['path']}")
+        print(f"  last sample:  {ds.recordings[-1]['path']}")
         print()
 
     if fail:

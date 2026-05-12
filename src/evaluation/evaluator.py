@@ -1,9 +1,32 @@
-from typing import Dict
+from collections import defaultdict
+from typing import Dict, List, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from .metrics import compute_metrics
+
+
+def _group_mean(
+    probs: np.ndarray,
+    labels: np.ndarray,
+    keys: List[str],
+    domain_ids: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Aggregate probabilities by key (mean), return (mean_probs, labels, domain_ids) per key."""
+    buckets: Dict[str, Dict] = defaultdict(lambda: {"probs": [], "label": None, "domain": None})
+    for p, lab, k, d in zip(probs, labels, keys, domain_ids):
+        buckets[k]["probs"].append(p)
+        buckets[k]["label"] = lab
+        buckets[k]["domain"] = d
+    out_probs = []
+    out_labels = []
+    out_domains = []
+    for k, v in buckets.items():
+        out_probs.append(float(np.mean(v["probs"])))
+        out_labels.append(int(v["label"]))
+        out_domains.append(int(v["domain"]))
+    return np.array(out_probs), np.array(out_labels), np.array(out_domains)
 
 
 def run_eval(
@@ -15,41 +38,69 @@ def run_eval(
     backbone.eval()
     classifier.eval()
 
-    all_labels = []
-    all_probs = []
-    all_domain_ids = []
+    all_labels: List[int] = []
+    all_probs: List[float] = []
+    all_domain_ids: List[int] = []
+    all_recording_ids: List[str] = []
+    all_subject_ids: List[str] = []
 
     with torch.no_grad():
         for batch in loader:
-            waveform = batch["waveform"].squeeze(1).to(device)
+            input_values = batch["input_values"].to(device)
+            attention_mask = batch.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
             labels = batch["label"].cpu().numpy()
 
-            features = backbone(waveform)
+            features = backbone(input_values, attention_mask=attention_mask)
             logits = classifier(features).squeeze(-1)
             probs = torch.sigmoid(logits).cpu().numpy()
 
-            all_labels.append(labels)
-            all_probs.append(probs)
+            all_labels.extend(labels.tolist())
+            all_probs.extend(probs.tolist())
             if "domain_id" in batch:
-                all_domain_ids.append(batch["domain_id"].cpu().numpy())
+                all_domain_ids.extend(batch["domain_id"].cpu().numpy().tolist())
+            all_recording_ids.extend(batch.get("recording_id", [""] * len(labels)))
+            all_subject_ids.extend(batch.get("subject_id", [""] * len(labels)))
 
     if not all_labels:
         return {"uar": float("nan"), "auc_roc": float("nan"), "f1": float("nan"), "accuracy": float("nan")}
 
-    all_labels = np.concatenate(all_labels)
-    all_probs = np.concatenate(all_probs)
-    all_preds = (all_probs >= 0.5).astype(int)
+    seg_probs = np.array(all_probs)
+    seg_labels = np.array(all_labels).astype(int)
+    seg_domains = np.array(all_domain_ids) if all_domain_ids else np.zeros_like(seg_labels)
+    seg_rec_ids = all_recording_ids
+    seg_subj_ids = all_subject_ids
 
-    metrics = compute_metrics(all_labels.astype(int), all_preds, all_probs)
+    seg_preds = (seg_probs >= 0.5).astype(int)
+    seg_metrics = compute_metrics(seg_labels, seg_preds, seg_probs)
+
+    rec_probs, rec_labels, rec_domains = _group_mean(seg_probs, seg_labels, seg_rec_ids, seg_domains)
+    rec_preds = (rec_probs >= 0.5).astype(int)
+    rec_metrics = compute_metrics(rec_labels.astype(int), rec_preds, rec_probs)
+
+    subj_probs, subj_labels, subj_domains = _group_mean(seg_probs, seg_labels, seg_subj_ids, seg_domains)
+    subj_preds = (subj_probs >= 0.5).astype(int)
+    subj_metrics = compute_metrics(subj_labels.astype(int), subj_preds, subj_probs)
+
+    metrics: Dict[str, float] = dict(subj_metrics)
+    metrics["uar_segment"] = seg_metrics["uar"]
+    metrics["uar_recording"] = rec_metrics["uar"]
 
     if all_domain_ids:
-        all_domain_ids = np.concatenate(all_domain_ids)
-        for d in np.unique(all_domain_ids):
-            mask = all_domain_ids == d
-            if mask.sum() < 2:
+        for d in np.unique(subj_domains):
+            mask = subj_domains == d
+            if mask.sum() < 1:
                 continue
-            dm = compute_metrics(all_labels[mask].astype(int), all_preds[mask], all_probs[mask])
-            for k, v in dm.items():
-                metrics[f"{k}_d{int(d)}"] = v
+            try:
+                dm = compute_metrics(
+                    subj_labels[mask].astype(int),
+                    subj_preds[mask],
+                    subj_probs[mask],
+                )
+                for k, v in dm.items():
+                    metrics[f"{k}_d{int(d)}"] = v
+            except Exception:
+                continue
 
     return metrics

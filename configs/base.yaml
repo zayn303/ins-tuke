@@ -7,7 +7,7 @@ model: wav2vec2            # wav2vec2 | hubert | wavlm
 max_duration: 10.0
 sample_rate: 16000
 batch_size: 16
-epochs: 50
+epochs: 25
 lr: 1.0e-4
 weight_decay: 1.0e-4
 freeze_backbone: true
@@ -18,3 +18,9 @@ wandb_project: "pd-dg"
 wandb_entity: null
 wandb_offline: false
 checkpoint_dir: "checkpoints"
+
+# Segment manifest parameters (phase1-segmentation)
+segment_seconds: 10.0
+segment_stride_seconds: 5.0
+min_segment_seconds: 1.0
+feature_extractor: hf_default

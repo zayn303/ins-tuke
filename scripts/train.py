@@ -33,13 +33,22 @@ def _build_datasets(cfg: DictConfig):
     datasets = []
     for cls, rel_path in zip(_DOMAIN_CLASSES, _DOMAIN_PATHS):
         root = data_root / rel_path
-        ds = cls(root, sample_rate=cfg.sample_rate, max_duration=cfg.max_duration)
+        ds = cls(
+            root,
+            sample_rate=cfg.sample_rate,
+            max_duration=cfg.max_duration,
+            segment_seconds=cfg.get("segment_seconds", 10.0),
+            segment_stride_seconds=cfg.get("segment_stride_seconds", 5.0),
+            min_segment_seconds=cfg.get("min_segment_seconds", 1.0),
+            model_name=cfg.model,
+        )
         datasets.append(ds)
     return datasets
 
 
 def _compute_pos_weight(source_datasets) -> torch.Tensor:
-    all_labels = [s["label"] for ds in source_datasets for s in ds.samples]
+    # Recording-level balance — avoids inflated counts from segment duplication.
+    all_labels = [r["label"] for ds in source_datasets for r in ds.recordings]
     n_pos = sum(all_labels)
     n_neg = len(all_labels) - n_pos
     return torch.tensor([n_neg / max(n_pos, 1)], dtype=torch.float32)
@@ -118,8 +127,12 @@ def main(cfg: DictConfig) -> None:
     source_datasets, test_dataset = get_domain_datasets(cfg, all_datasets)
 
     pos_weight = _compute_pos_weight(source_datasets)
-    print(f"pos_weight={pos_weight.item():.3f}  "
-          f"(n_source_samples={sum(len(ds.samples) for ds in source_datasets)})")
+    n_recordings = sum(len(ds.recordings) for ds in source_datasets)
+    n_segments = sum(len(ds.segments) for ds in source_datasets)
+    print(
+        f"pos_weight={pos_weight.item():.3f}  "
+        f"(n_source_recordings={n_recordings}, n_source_segments={n_segments})"
+    )
 
     collate = mixup_collate_fn(cfg.get("mixup_alpha", 0.2)) if cfg.method_name == "mixup" else default_collate_fn
 
@@ -130,7 +143,7 @@ def main(cfg: DictConfig) -> None:
         seed=cfg.seed,
         collate_fn=collate,
     )
-    test_loader = build_test_loader(test_dataset, batch_size=cfg.batch_size)
+    test_loader = build_test_loader(test_dataset, batch_size=cfg.batch_size, collate_fn=default_collate_fn)
 
     backbone = SpeechBackbone(
         cfg.model,

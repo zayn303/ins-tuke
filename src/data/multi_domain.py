@@ -18,7 +18,7 @@ def subject_split(dataset, train_ratio: float = 0.8, seed: int = 42) -> Tuple[Se
 
 def _filter_by_subjects(dataset, subject_ids: Set[str]) -> Subset:
     indices = [
-        i for i, s in enumerate(dataset.samples)
+        i for i, s in enumerate(dataset.segments)
         if s["subject_id"] in subject_ids
     ]
     return Subset(dataset, indices)
@@ -68,12 +68,14 @@ def build_test_loader(
     test_dataset,
     batch_size: int = 16,
     num_workers: int = 0,
+    collate_fn=None,
 ) -> DataLoader:
     return DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        collate_fn=collate_fn,
     )
 
 

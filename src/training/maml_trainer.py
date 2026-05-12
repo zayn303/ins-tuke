@@ -38,8 +38,6 @@ class MAMLTrainer(BaseTrainer):
 
         domain_ids = list(domain_loaders.keys())
         domain_iters = {d: self._cyclic(loader) for d, loader in domain_loaders.items()}
-        # Only wrap classifier — backbone is frozen, patching it with higher
-        # causes 38+ GB VRAM usage from the unrolled computation graph.
         inner_opt = torch.optim.SGD(self.classifier.parameters(), lr=self.inner_lr)
 
         total_loss = 0.0
@@ -59,20 +57,26 @@ class MAMLTrainer(BaseTrainer):
                     support_loss = torch.tensor(0.0, device=self.device)
                     for d in support_domains:
                         batch = next(domain_iters[d])
-                        wav = batch["waveform"].squeeze(1).to(self.device)
+                        input_values = batch["input_values"].to(self.device)
+                        attention_mask = batch.get("attention_mask")
+                        if attention_mask is not None:
+                            attention_mask = attention_mask.to(self.device)
                         labels = batch["label"].float().to(self.device)
                         with torch.no_grad():
-                            features = self.backbone(wav)
+                            features = self.backbone(input_values, attention_mask=attention_mask)
                         logits = fclassifier(features).squeeze(-1)
                         support_loss = support_loss + self.criterion(logits, labels)
                     support_loss = support_loss / len(support_domains)
                     diffopt.step(support_loss)
 
                 query_batch = next(domain_iters[query_domain])
-                query_wav = query_batch["waveform"].squeeze(1).to(self.device)
+                query_inputs = query_batch["input_values"].to(self.device)
+                query_mask = query_batch.get("attention_mask")
+                if query_mask is not None:
+                    query_mask = query_mask.to(self.device)
                 query_labels = query_batch["label"].float().to(self.device)
                 with torch.no_grad():
-                    query_features = self.backbone(query_wav)
+                    query_features = self.backbone(query_inputs, attention_mask=query_mask)
                 query_logits = fclassifier(query_features).squeeze(-1)
                 query_loss = self.criterion(query_logits, query_labels)
 

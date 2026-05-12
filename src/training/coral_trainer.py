@@ -49,13 +49,16 @@ class CORALTrainer(BaseTrainer):
         n_batches = 0
 
         for batch in loader:
-            waveform = batch["waveform"].squeeze(1).to(self.device)
+            input_values = batch["input_values"].to(self.device)
+            attention_mask = batch.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(self.device)
             labels = batch["label"].float().to(self.device)
             domain_ids = batch["domain_id"].to(self.device)
 
             self.optimizer.zero_grad()
 
-            backbone_out = self.backbone(waveform)
+            backbone_out = self.backbone(input_values, attention_mask=attention_mask)
             features = self.classifier.get_features(backbone_out)
             logits = self.classifier.head(features).squeeze(-1)
 

@@ -1,5 +1,14 @@
+import re
 from pathlib import Path
 from .base_dataset import PDDataset
+
+
+_TASK_PREFIX_RE = re.compile(r"^([A-Z]+)\d")
+
+
+def _task_code(name: str) -> str:
+    m = _TASK_PREFIX_RE.match(name)
+    return m.group(1) if m else ""
 
 
 class ItalianPDDataset(PDDataset):
@@ -28,8 +37,10 @@ class ItalianPDDataset(PDDataset):
                     continue
                 subject_id = subdir.name
                 for wav in wavs:
-                    self.samples.append({
+                    self.recordings.append({
                         "path": str(wav),
                         "label": label,
                         "subject_id": subject_id,
+                        "recording_id": str(wav.relative_to(self.root)),
+                        "task_code": _task_code(wav.name),
                     })
