@@ -34,6 +34,8 @@ class MAMLTrainer(BaseTrainer):
 
     def train_epoch(self, domain_loaders: Dict[int, DataLoader], **kwargs) -> float:
         self.backbone.train()
+        if not any(p.requires_grad for p in self.backbone.parameters()):
+            self.backbone.eval()
         self.classifier.train()
 
         domain_ids = list(domain_loaders.keys())

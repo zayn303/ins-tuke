@@ -13,6 +13,8 @@ class ERMTrainer(BaseTrainer):
 
     def train_epoch(self, loader, **kwargs) -> float:
         self.backbone.train()
+        if not any(p.requires_grad for p in self.backbone.parameters()):
+            self.backbone.eval()
         self.classifier.train()
         total_loss = 0.0
         n_batches = 0

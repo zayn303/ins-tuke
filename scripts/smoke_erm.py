@@ -1,11 +1,13 @@
-"""Run all 12 ERM smoke tests (1 epoch) in parallel.
+"""Run all 12 ERM smoke tests (1 epoch) sequentially by default.
 
 Usage:
-    python scripts/smoke_erm.py                   # 4 workers default
-    python scripts/smoke_erm.py --workers 12      # all at once
+    python scripts/smoke_erm.py                       # 1 worker default
+    python scripts/smoke_erm.py --workers 4           # parallel (GPU contention warning)
     python scripts/smoke_erm.py --data-root /home/ak562fx/ins-tuke/Data
+    python scripts/smoke_erm.py --batch-size 2        # reduce VRAM further
 """
 import argparse
+import os
 import subprocess
 import sys
 import threading
@@ -25,7 +27,7 @@ def log(msg):
         print(msg, flush=True)
 
 
-def run_combo(model, held_out, log_dir, ckpt_dir, data_root):
+def run_combo(model, held_out, log_dir, ckpt_dir, data_root, batch_size):
     tag = f"erm_{model}_held{held_out}"
     out_path = log_dir / f"{tag}.out"
     err_path = log_dir / f"{tag}.err"
@@ -41,33 +43,48 @@ def run_combo(model, held_out, log_dir, ckpt_dir, data_root):
         f"data_root={data_root}",
         f"checkpoint_dir={ckpt_dir}",
         "wandb_offline=true",
+        f"batch_size={batch_size}",
     ]
+
+    env = os.environ.copy()
+    env["TRANSFORMERS_OFFLINE"] = "1"
 
     proc = subprocess.Popen(
         cmd, cwd=ROOT,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True,
+        text=True, env=env,
     )
     stdout, stderr = proc.communicate()
 
     out_path.write_text(stdout)
     err_path.write_text(stderr)
 
+    if proc.returncode == 0:
+        status = "PASS"
+    elif "OutOfMemoryError" in stderr or "CUDA out of memory" in stderr:
+        status = "FAIL(OOM)"
+    else:
+        status = f"FAIL(exit {proc.returncode})"
+
     ok = proc.returncode == 0
-    status = "PASS" if ok else f"FAIL(exit {proc.returncode})"
     log(f"[{tag}] {status}")
 
-    return tag, ok, proc.returncode
+    return tag, ok, status
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="/home/ak562fx/ins-tuke/Data")
-    parser.add_argument("--workers", type=int, default=4,
-                        help="parallel workers (default 4, max 12)")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="parallel workers (default 1 — sequential, no GPU contention)")
+    parser.add_argument("--batch-size", type=int, default=4,
+                        help="batch size per combo (default 4 — low VRAM)")
     args = parser.parse_args()
 
     workers = min(args.workers, 12)
+
+    if workers > 1:
+        print(f"WARNING: --workers {workers} > 1; GPU contention is your responsibility")
 
     ts = datetime.now().strftime("%Y-%m-%d_%H%M")
     log_dir = ROOT / "logs" / f"{ts}_erm_smoke"
@@ -77,30 +94,46 @@ def main():
 
     combos = [(m, h) for h in HELD_OUTS for m in MODELS]
 
-    print(f"Smoke run: {len(combos)} combos, {workers} workers → {log_dir}")
+    print(f"Smoke run: {len(combos)} combos, {workers} workers, batch_size={args.batch_size} → {log_dir}")
     print("=" * 60)
 
     results = []
+    seen_tags = set()
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(run_combo, m, h, log_dir, ckpt_dir, args.data_root): (m, h)
+            pool.submit(run_combo, m, h, log_dir, ckpt_dir, args.data_root, args.batch_size): (m, h)
             for m, h in combos
         }
         for fut in as_completed(futures):
-            results.append(fut.result())
+            try:
+                tag, ok, status = fut.result()
+                results.append((tag, ok, status))
+                seen_tags.add(tag)
+            except Exception as e:
+                m, h = futures[fut]
+                tag = f"erm_{m}_held{h}"
+                results.append((tag, False, f"ERROR({repr(e)})"))
+                seen_tags.add(tag)
+
+    expected = {f"erm_{m}_held{h}" for h in HELD_OUTS for m in MODELS}
+    for tag in sorted(expected - seen_tags):
+        results.append((tag, False, "ERROR(missing)"))
 
     results.sort(key=lambda x: x[0])
 
     print("\n" + "=" * 60)
     print(f"Results ({log_dir.name}):")
     failed = []
-    for tag, ok, rc in results:
-        status = "PASS" if ok else f"FAIL(exit {rc})"
-        print(f"  {status:16s}  {tag}")
+    for tag, ok, status in results:
+        print(f"  {status:20s}  {tag}")
         if not ok:
             failed.append(tag)
 
     print()
+    if any(s == "FAIL(OOM)" for _, _, s in results):
+        print("HINT: OOM detected — rerun with --workers 1 or reduce --batch-size")
+        print()
+
     if failed:
         print(f"FAILED: {len(failed)}/{len(combos)}")
         sys.exit(1)

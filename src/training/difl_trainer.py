@@ -39,6 +39,8 @@ class DIFLTrainer(BaseTrainer):
 
     def train_epoch(self, loader, epoch: int = 0, **kwargs) -> float:
         self.backbone.train()
+        if not any(p.requires_grad for p in self.backbone.parameters()):
+            self.backbone.eval()
         self.classifier.train()
         self.domain_discriminator.train()
 
