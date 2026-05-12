@@ -7,7 +7,7 @@
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 
-module load pytorch/12.8
+source /home/ak562fx/ins-tuke/venv/bin/activate
 
 python scripts/train.py \
     method=${METHOD} \
