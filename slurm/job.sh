@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=pd-dg
+#SBATCH --partition=dgx
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G

@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=pd-dg-array
+#SBATCH --partition=dgx
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
@@ -34,5 +35,5 @@ python scripts/train.py \
     method=${METHOD} \
     model=${MODEL} \
     held_out_domain=${HELD_OUT} \
-    data_root=${DATA_ROOT:-Data} \
+    data_root=${DATA_ROOT:-/home/ak562fx/ins-tuke/Data} \
     wandb_offline=true
