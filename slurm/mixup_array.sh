@@ -7,7 +7,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=/dev/null
 #SBATCH --error=/dev/null
-#SBATCH --array=0-8%3
+#SBATCH --array=0-8%1
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 

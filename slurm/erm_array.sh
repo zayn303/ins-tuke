@@ -7,7 +7,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=/dev/null
 #SBATCH --error=/dev/null
-#SBATCH --array=0-8%3
+#SBATCH --array=0-8%1
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 
@@ -30,6 +30,10 @@ HELD_OUT=${HELD_OUTS[$HELD_IDX]}
 
 mkdir -p logs
 exec >"logs/erm_${MODEL}_held${HELD_OUT}_${IDX}.out" 2>"logs/erm_${MODEL}_held${HELD_OUT}_${IDX}.err"
+
+echo "=== SLURM env: job=${SLURM_JOB_ID} task=${SLURM_ARRAY_TASK_ID} node=$(hostname) ==="
+echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+nvidia-smi --query-gpu=index,name,memory.used,memory.free --format=csv,noheader 2>/dev/null || echo "nvidia-smi unavailable"
 
 echo "Running: method=erm model=${MODEL} held_out_domain=${HELD_OUT}"
 

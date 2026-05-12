@@ -178,10 +178,16 @@ def main(cfg: DictConfig) -> None:
             for k, v in val_metrics.items()
             if k.startswith("uar_d")
         )
-        print(f"  val_uar={val_uar:.4f}" + (f"  [{domain_uar_str}]" if domain_uar_str else ""))
+        # Use macro-average of per-domain UARs as checkpoint criterion.
+        # Avoids large-domain bias when source domains are imbalanced (e.g. Italian 831 >> MDVR 73).
+        domain_uars = [v for k, v in val_metrics.items()
+                       if k.startswith("uar_d") and v == v]  # v==v filters NaN
+        checkpoint_uar = sum(domain_uars) / len(domain_uars) if domain_uars else val_uar
+        macro_str = f"  macro={checkpoint_uar:.4f}" if len(domain_uars) > 1 else ""
+        print(f"  val_uar={val_uar:.4f}{macro_str}" + (f"  [{domain_uar_str}]" if domain_uar_str else ""))
 
-        if val_metrics.get("uar", -1) > best_uar:
-            best_uar = val_metrics["uar"]
+        if checkpoint_uar > best_uar:
+            best_uar = checkpoint_uar
             ckpt_path = ckpt_dir / f"{cfg.method_name}_{cfg.model}_held{cfg.held_out_domain}_best.pt"
             trainer.save_checkpoint(ckpt_path, epoch=epoch + 1, metrics=val_metrics)
             print(f"  checkpoint → {ckpt_path}")
