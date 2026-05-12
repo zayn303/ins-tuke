@@ -9,6 +9,10 @@ openspec/
 # Python env
 venv/
 
+# SLURM logs
+logs/
+cluster's logs/
+
 # Runtime artifacts
 checkpoints/
 outputs/

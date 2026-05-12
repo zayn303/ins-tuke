@@ -78,7 +78,7 @@ def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_dataset
 
 
 def _build_maml_domain_loaders(source_datasets, cfg):
-    domain_batches = {}
+    domain_loaders = {}
     for ds in source_datasets:
         train_ids, _ = subject_split(ds, train_ratio=0.8, seed=cfg.seed)
         train_subset = _filter_by_subjects(ds, train_ids)
@@ -89,8 +89,8 @@ def _build_maml_domain_loaders(source_datasets, cfg):
             num_workers=0,
             collate_fn=default_collate_fn,
         )
-        domain_batches[ds.domain_id] = list(loader)
-    return domain_batches
+        domain_loaders[ds.domain_id] = loader
+    return domain_loaders
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="base")
@@ -124,7 +124,7 @@ def main(cfg: DictConfig) -> None:
     trainer = _build_trainer(cfg, backbone, classifier, device, source_datasets)
 
     if cfg.method_name == "maml":
-        maml_domain_batches = _build_maml_domain_loaders(source_datasets, cfg)
+        maml_domain_loaders = _build_maml_domain_loaders(source_datasets, cfg)
 
     run = init_wandb(cfg)
     ckpt_dir = Path(cfg.checkpoint_dir)
@@ -134,7 +134,7 @@ def main(cfg: DictConfig) -> None:
 
     for epoch in range(cfg.epochs):
         if cfg.method_name == "maml":
-            train_loss = trainer.train_epoch(maml_domain_batches)
+            train_loss = trainer.train_epoch(maml_domain_loaders)
         elif cfg.method_name == "difl":
             train_loss = trainer.train_epoch(train_loader, epoch=epoch)
         else:
