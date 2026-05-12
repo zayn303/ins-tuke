@@ -6,7 +6,7 @@
 #SBATCH --gpus-per-task=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=12:00:00
+#SBATCH --time=01:00:00
 #SBATCH --array=0-8%9
 
 # Submit with:
