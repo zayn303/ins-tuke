@@ -15,10 +15,16 @@ class VoiceSamplesAHDataset(PDDataset):
             "PD_AH": 1,
         }
         for outer_name, label in label_dirs.items():
-            # Dataset layout: root/HC_AH/HC_AH/*.wav  (double-nested by dataset convention)
-            outer = self.root / outer_name / outer_name
-            if not outer.exists():
-                print(f"WARN VoiceSamplesAH: {outer} not found", file=sys.stderr)
+            # Try double-nested first (root/HC_AH/HC_AH/), then single-level (root/HC_AH/).
+            # Structure differs between local and cluster copies of this dataset.
+            double = self.root / outer_name / outer_name
+            single = self.root / outer_name
+            if double.exists():
+                outer = double
+            elif single.exists():
+                outer = single
+            else:
+                print(f"WARN VoiceSamplesAH: neither {double} nor {single} exists", file=sys.stderr)
                 continue
             for wav in sorted(outer.glob("*.wav")):
                 m = _SUBJECT_RE.match(wav.name)
