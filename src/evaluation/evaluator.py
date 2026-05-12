@@ -33,6 +33,9 @@ def run_eval(
             if "domain_id" in batch:
                 all_domain_ids.append(batch["domain_id"].cpu().numpy())
 
+    if not all_labels:
+        return {"uar": float("nan"), "auc_roc": float("nan"), "f1": float("nan"), "accuracy": float("nan")}
+
     all_labels = np.concatenate(all_labels)
     all_probs = np.concatenate(all_probs)
     all_preds = (all_probs >= 0.5).astype(int)

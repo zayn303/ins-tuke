@@ -7,7 +7,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/%A_%a.out
 #SBATCH --error=logs/%A_%a.err
-#SBATCH --array=0-8
+#SBATCH --array=0-8%3
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 

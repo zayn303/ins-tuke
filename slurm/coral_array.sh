@@ -7,7 +7,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --output=logs/%A_%a.out
 #SBATCH --error=logs/%A_%a.err
-#SBATCH --array=0-8
+#SBATCH --array=0-8%3
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 
@@ -16,6 +16,7 @@ export HF_DATASETS_OFFLINE=1
 export HYDRA_FULL_ERROR=1
 export TRANSFORMERS_VERBOSITY=error
 export HF_HUB_VERBOSITY=error
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 MODELS=(wav2vec2 hubert wavlm)
 HELD_OUTS=(0 1 2)
