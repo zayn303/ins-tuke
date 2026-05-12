@@ -1,5 +1,5 @@
 import random
-from typing import Dict
+from typing import Dict, Optional
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -18,12 +18,14 @@ class MAMLTrainer(BaseTrainer):
         n_inner_steps: int,
         n_episodes_per_epoch: int,
         device: torch.device,
+        pos_weight: Optional[torch.Tensor] = None,
     ):
         super().__init__(backbone, classifier, lr, weight_decay, device)
         self.inner_lr = inner_lr
         self.n_inner_steps = n_inner_steps
         self.n_episodes_per_epoch = n_episodes_per_epoch
-        self.criterion = nn.BCEWithLogitsLoss()
+        pw = pos_weight.to(device) if pos_weight is not None else None
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pw)
 
     @staticmethod
     def _cyclic(loader: DataLoader):
@@ -79,4 +81,6 @@ class MAMLTrainer(BaseTrainer):
             self.optimizer.step()
             total_loss += query_loss.item()
 
-        return total_loss / max(self.n_episodes_per_epoch, 1)
+        mean_loss = total_loss / max(self.n_episodes_per_epoch, 1)
+        self.last_stats = {"query_loss": mean_loss}
+        return mean_loss

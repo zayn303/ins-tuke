@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import torch
 import torch.nn as nn
 from .base_trainer import BaseTrainer
@@ -16,17 +16,18 @@ class DIFLTrainer(BaseTrainer):
         lambda_grl_max: float,
         total_epochs: int,
         device: torch.device,
+        pos_weight: Optional[torch.Tensor] = None,
     ):
         super().__init__(backbone, classifier, lr, weight_decay, device)
         n_domains = len(source_domain_ids)
-        # Map global domain_id → local class index {0, ..., n_domains-1}
         self._domain_id_map = {gid: lid for lid, gid in enumerate(sorted(source_domain_ids))}
         self.domain_discriminator = DomainDiscriminator(
             feature_dim=512, n_domains=n_domains, alpha=1.0
         ).to(device)
         self.lambda_grl_max = lambda_grl_max
         self.total_epochs = total_epochs
-        self.label_criterion = nn.BCEWithLogitsLoss()
+        pw = pos_weight.to(device) if pos_weight is not None else None
+        self.label_criterion = nn.BCEWithLogitsLoss(pos_weight=pw)
         self.domain_criterion = nn.CrossEntropyLoss()
 
         self.optimizer.add_param_group(
@@ -45,6 +46,8 @@ class DIFLTrainer(BaseTrainer):
         self.domain_discriminator.set_alpha(lam)
 
         total_loss = 0.0
+        total_label_loss = 0.0
+        total_domain_loss = 0.0
         n_batches = 0
 
         for batch in loader:
@@ -71,6 +74,14 @@ class DIFLTrainer(BaseTrainer):
             self.optimizer.step()
 
             total_loss += loss.item()
+            total_label_loss += label_loss.item()
+            total_domain_loss += domain_loss.item()
             n_batches += 1
 
-        return total_loss / max(n_batches, 1)
+        mean_loss = total_loss / max(n_batches, 1)
+        self.last_stats = {
+            "label_loss": total_label_loss / max(n_batches, 1),
+            "domain_loss": total_domain_loss / max(n_batches, 1),
+            "grl_lambda": lam,
+        }
+        return mean_loss

@@ -17,6 +17,7 @@ class BaseTrainer(ABC):
         self.backbone = backbone.to(device)
         self.classifier = classifier.to(device)
         self.device = device
+        self.last_stats: Dict[str, Any] = {}
         self.optimizer = torch.optim.Adam(
             list(backbone.parameters()) + list(classifier.parameters()),
             lr=lr,

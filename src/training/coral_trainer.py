@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import torch
 import torch.nn as nn
 from .base_trainer import BaseTrainer
@@ -33,15 +33,19 @@ class CORALTrainer(BaseTrainer):
         weight_decay: float,
         lambda_coral: float,
         device: torch.device,
+        pos_weight: Optional[torch.Tensor] = None,
     ):
         super().__init__(backbone, classifier, lr, weight_decay, device)
         self.lambda_coral = lambda_coral
-        self.criterion = nn.BCEWithLogitsLoss()
+        pw = pos_weight.to(device) if pos_weight is not None else None
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pw)
 
     def train_epoch(self, loader, **kwargs) -> float:
         self.backbone.train()
         self.classifier.train()
         total_loss = 0.0
+        total_label_loss = 0.0
+        total_coral_loss = 0.0
         n_batches = 0
 
         for batch in loader:
@@ -59,9 +63,7 @@ class CORALTrainer(BaseTrainer):
 
             unique_domains = domain_ids.unique()
             if len(unique_domains) > 1:
-                domain_features = [
-                    features[domain_ids == d] for d in unique_domains
-                ]
+                domain_features = [features[domain_ids == d] for d in unique_domains]
                 c_loss = coral_loss(domain_features)
             else:
                 c_loss = torch.tensor(0.0, device=self.device)
@@ -71,6 +73,13 @@ class CORALTrainer(BaseTrainer):
             self.optimizer.step()
 
             total_loss += loss.item()
+            total_label_loss += label_loss.item()
+            total_coral_loss += c_loss.item()
             n_batches += 1
 
-        return total_loss / max(n_batches, 1)
+        mean_loss = total_loss / max(n_batches, 1)
+        self.last_stats = {
+            "label_loss": total_label_loss / max(n_batches, 1),
+            "coral_loss": total_coral_loss / max(n_batches, 1),
+        }
+        return mean_loss

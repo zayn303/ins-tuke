@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import time
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -23,7 +24,7 @@ _DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset]
 _DOMAIN_PATHS = [
     "Italian_Parkinsons_Voice_and_Speech/italian_parkinson",
     "Mobile Device Voice Recordings at King's College London (MDVR-KCL) from both early and advanced Parkinson's disease patients and healthy controls/Mobile Device Voice Recordings at King's College London (MDVR-KCL) from both",
-    "Voice Samples for Patients with Parkinson’s Disease and Healthy Controls",
+    "Voice Samples for Patients with Parkinson's Disease and Healthy Controls",
 ]
 
 
@@ -37,11 +38,20 @@ def _build_datasets(cfg: DictConfig):
     return datasets
 
 
-def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_datasets):
+def _compute_pos_weight(source_datasets) -> torch.Tensor:
+    all_labels = [s["label"] for ds in source_datasets for s in ds.samples]
+    n_pos = sum(all_labels)
+    n_neg = len(all_labels) - n_pos
+    return torch.tensor([n_neg / max(n_pos, 1)], dtype=torch.float32)
+
+
+def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_datasets,
+                   pos_weight: torch.Tensor):
     method = cfg.method_name
     if method == "erm":
         from src.training.erm_trainer import ERMTrainer
-        return ERMTrainer(backbone, classifier, lr=cfg.lr, weight_decay=cfg.weight_decay, device=device)
+        return ERMTrainer(backbone, classifier, lr=cfg.lr, weight_decay=cfg.weight_decay,
+                          device=device, pos_weight=pos_weight)
     elif method == "difl":
         from src.training.difl_trainer import DIFLTrainer
         return DIFLTrainer(
@@ -51,10 +61,12 @@ def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_dataset
             lambda_grl_max=cfg.lambda_grl_max,
             total_epochs=cfg.epochs,
             device=device,
+            pos_weight=pos_weight,
         )
     elif method == "mixup":
         from src.training.mixup_trainer import MixupTrainer
-        return MixupTrainer(backbone, classifier, lr=cfg.lr, weight_decay=cfg.weight_decay, device=device)
+        return MixupTrainer(backbone, classifier, lr=cfg.lr, weight_decay=cfg.weight_decay,
+                            device=device, pos_weight=pos_weight)
     elif method == "maml":
         from src.training.maml_trainer import MAMLTrainer
         return MAMLTrainer(
@@ -64,6 +76,7 @@ def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_dataset
             n_inner_steps=cfg.n_inner_steps,
             n_episodes_per_epoch=cfg.n_episodes_per_epoch,
             device=device,
+            pos_weight=pos_weight,
         )
     elif method == "coral":
         from src.training.coral_trainer import CORALTrainer
@@ -72,6 +85,7 @@ def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_dataset
             lr=cfg.lr, weight_decay=cfg.weight_decay,
             lambda_coral=cfg.lambda_coral,
             device=device,
+            pos_weight=pos_weight,
         )
     else:
         raise ValueError(f"Unknown method: {method}")
@@ -103,6 +117,10 @@ def main(cfg: DictConfig) -> None:
     all_datasets = _build_datasets(cfg)
     source_datasets, test_dataset = get_domain_datasets(cfg, all_datasets)
 
+    pos_weight = _compute_pos_weight(source_datasets)
+    print(f"pos_weight={pos_weight.item():.3f}  "
+          f"(n_source_samples={sum(len(ds.samples) for ds in source_datasets)})")
+
     collate = mixup_collate_fn(cfg.get("mixup_alpha", 0.2)) if cfg.method_name == "mixup" else default_collate_fn
 
     train_loader, val_loader = build_loaders(
@@ -121,7 +139,7 @@ def main(cfg: DictConfig) -> None:
     ).to(device)
     classifier = PDClassifier().to(device)
 
-    trainer = _build_trainer(cfg, backbone, classifier, device, source_datasets)
+    trainer = _build_trainer(cfg, backbone, classifier, device, source_datasets, pos_weight)
 
     if cfg.method_name == "maml":
         maml_domain_loaders = _build_maml_domain_loaders(source_datasets, cfg)
@@ -133,6 +151,8 @@ def main(cfg: DictConfig) -> None:
     best_uar = -1.0
 
     for epoch in range(cfg.epochs):
+        t0 = time.time()
+
         if cfg.method_name == "maml":
             train_loss = trainer.train_epoch(maml_domain_loaders)
         elif cfg.method_name == "difl":
@@ -140,20 +160,31 @@ def main(cfg: DictConfig) -> None:
         else:
             train_loss = trainer.train_epoch(train_loader)
 
-        print(f"Epoch {epoch + 1}/{cfg.epochs} | train_loss={train_loss:.4f}")
+        epoch_time = time.time() - t0
+
+        stats_str = "  ".join(f"{k}={v:.4f}" for k, v in trainer.last_stats.items())
+        print(f"Epoch {epoch + 1}/{cfg.epochs} | train_loss={train_loss:.4f} | {stats_str} | {epoch_time:.1f}s")
 
         val_metrics = trainer.eval_epoch(val_loader)
 
-        log_payload = {"train/loss": train_loss, "epoch": epoch + 1}
+        log_payload = {"train/loss": train_loss, "epoch": epoch + 1, "epoch_time_s": epoch_time}
+        log_payload.update({f"train/{k}": v for k, v in trainer.last_stats.items()})
         log_payload.update({f"val/{k}": v for k, v in val_metrics.items()})
         log_metrics(run, log_payload, step=epoch + 1)
 
-        print(f"  val_uar={val_metrics.get('uar', float('nan')):.4f}")
+        val_uar = val_metrics.get("uar", float("nan"))
+        domain_uar_str = "  ".join(
+            f"d{k.split('_d')[1]}={v:.4f}"
+            for k, v in val_metrics.items()
+            if k.startswith("uar_d")
+        )
+        print(f"  val_uar={val_uar:.4f}" + (f"  [{domain_uar_str}]" if domain_uar_str else ""))
 
         if val_metrics.get("uar", -1) > best_uar:
             best_uar = val_metrics["uar"]
             ckpt_path = ckpt_dir / f"{cfg.method_name}_{cfg.model}_held{cfg.held_out_domain}_best.pt"
             trainer.save_checkpoint(ckpt_path, epoch=epoch + 1, metrics=val_metrics)
+            print(f"  checkpoint → {ckpt_path}")
 
     test_metrics = trainer.eval_epoch(test_loader)
     print(f"\nTest metrics (held_out_domain={cfg.held_out_domain}): {test_metrics}")
