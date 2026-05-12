@@ -6,6 +6,9 @@ openspec/
 # Datasets
 /Data/
 
+# Python env
+venv/
+
 # Runtime artifacts
 checkpoints/
 outputs/
