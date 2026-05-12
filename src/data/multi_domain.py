@@ -80,7 +80,16 @@ def build_test_loader(
 
 
 def get_domain_datasets(cfg, all_datasets: List) -> Tuple[List, object]:
-    held_out = cfg.held_out_domain
+    raw = cfg.held_out_domain
+    if raw is None or raw == "":
+        raise ValueError(f"held_out_domain missing or empty (got {raw!r})")
+    try:
+        held_out = int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"held_out_domain must be integer (got {raw!r})")
+    n = len(all_datasets)
+    if not (0 <= held_out < n):
+        raise ValueError(f"held_out_domain={held_out} out of range [0,{n})")
     source = [ds for ds in all_datasets if ds.domain_id != held_out]
     test_ds = all_datasets[held_out]
     return source, test_ds

@@ -10,8 +10,9 @@
 #SBATCH --array=0-11%9
 
 # Submit with:
-#   sbatch --export=ALL,RUN_TS=$(date +%Y-%m-%d_%H%M) slurm/difl_array.sh
+#   sbatch --export=ALL,RUN_TS=$(date +%Y-%m-%d_%H%M),HF_HOME=/home/ak562fx/.cache/huggingface slurm/difl_array.sh
 : "${RUN_TS:?must export RUN_TS via sbatch --export=ALL,RUN_TS=\$(date +%Y-%m-%d_%H%M)}"
+: "${HF_HOME:?must export HF_HOME on shared FS}"
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 
@@ -23,14 +24,26 @@ export HF_HUB_VERBOSITY=error
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 MODELS=(wav2vec2 hubert wavlm)
-HELD_OUTS=(0 1 2)
+HELD_OUTS=(0 1 2 3)
+NUM_MODEL=${#MODELS[@]}
+NUM_HELD=${#HELD_OUTS[@]}
+EXPECTED=$((NUM_HELD * NUM_MODEL - 1))
 
 IDX=${SLURM_ARRAY_TASK_ID}
-MODEL_IDX=$((IDX % 3))
-HELD_IDX=$((IDX / 3))
+if [[ "$IDX" -lt 0 || "$IDX" -gt "$EXPECTED" ]]; then
+    echo "ERROR: SLURM_ARRAY_TASK_ID=$IDX out of [0,$EXPECTED]" >&2
+    exit 2
+fi
 
+MODEL_IDX=$((IDX % NUM_MODEL))
+HELD_IDX=$((IDX / NUM_MODEL))
 MODEL=${MODELS[$MODEL_IDX]}
 HELD_OUT=${HELD_OUTS[$HELD_IDX]}
+
+if [[ -z "$HELD_OUT" || -z "$MODEL" ]]; then
+    echo "ERROR: empty MODEL=$MODEL or HELD_OUT=$HELD_OUT at IDX=$IDX" >&2
+    exit 2
+fi
 
 RUN_DIR="${RUN_TS}_job${SLURM_ARRAY_JOB_ID}"
 LOG_DIR="logs/${RUN_DIR}"

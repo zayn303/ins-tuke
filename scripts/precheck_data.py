@@ -3,9 +3,13 @@
 Run on login node before submitting SLURM:
     python scripts/precheck_data.py
     python scripts/precheck_data.py /custom/data/root
+    python scripts/precheck_data.py --check-hf
+    python scripts/precheck_data.py /custom/data/root --check-hf
 
-Exits 1 if any domain has missing root or 0 samples.
+Exits 1 if any domain has missing root, 0 samples, or (with --check-hf) missing HF cache.
 """
+import argparse
+import os
 import statistics
 import sys
 from collections import Counter
@@ -53,8 +57,38 @@ def _neurovoz_task_breakdown(recordings):
     return dict(counts)
 
 
+def check_hf_cache() -> int:
+    from src.utils.audio import _MODEL_IDS
+    from transformers import AutoFeatureExtractor
+
+    hf_home = os.environ.get("HF_HOME", "")
+    if not hf_home:
+        print("WARN: HF_HOME not set; using default HuggingFace cache location")
+
+    failed = False
+    for name, model_id in _MODEL_IDS.items():
+        try:
+            AutoFeatureExtractor.from_pretrained(model_id, local_files_only=True)
+        except Exception as exc:
+            print(f"FAIL HF cache: {model_id} — {exc}")
+            failed = True
+
+    if failed:
+        return 1
+
+    cache_root = hf_home or "~/.cache/huggingface"
+    models_str = " ".join(_MODEL_IDS.values())
+    print(f"OK HF cache: {models_str} at {cache_root}")
+    return 0
+
+
 def main() -> int:
-    data_root = Path(sys.argv[1] if len(sys.argv) > 1 else "/home/ak562fx/ins-tuke/Data")
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("data_root", nargs="?", default="/home/ak562fx/ins-tuke/Data")
+    parser.add_argument("--check-hf", action="store_true")
+    args, _ = parser.parse_known_args()
+
+    data_root = Path(args.data_root)
     print(f"data_root: {data_root}")
     print(f"data_root.exists(): {data_root.exists()}")
     if not data_root.exists():
@@ -121,6 +155,10 @@ def main() -> int:
         print("PRECHECK FAILED")
         return 1
     print("PRECHECK PASSED")
+
+    if args.check_hf:
+        return check_hf_cache()
+
     return 0
 
 
