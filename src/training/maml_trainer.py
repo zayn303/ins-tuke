@@ -25,11 +25,17 @@ class MAMLTrainer(BaseTrainer):
         self.n_episodes_per_epoch = n_episodes_per_epoch
         self.criterion = nn.BCEWithLogitsLoss()
 
+    @staticmethod
+    def _cyclic(loader: DataLoader):
+        while True:
+            yield from loader
+
     def train_epoch(self, domain_loaders: Dict[int, DataLoader], **kwargs) -> float:
         self.backbone.train()
         self.classifier.train()
 
         domain_ids = list(domain_loaders.keys())
+        domain_iters = {d: self._cyclic(loader) for d, loader in domain_loaders.items()}
         # Only wrap classifier — backbone is frozen, patching it with higher
         # causes 38+ GB VRAM usage from the unrolled computation graph.
         inner_opt = torch.optim.SGD(self.classifier.parameters(), lr=self.inner_lr)
@@ -50,7 +56,7 @@ class MAMLTrainer(BaseTrainer):
                 for _ in range(self.n_inner_steps):
                     support_loss = torch.tensor(0.0, device=self.device)
                     for d in support_domains:
-                        batch = next(iter(domain_loaders[d]))
+                        batch = next(domain_iters[d])
                         wav = batch["waveform"].squeeze(1).to(self.device)
                         labels = batch["label"].float().to(self.device)
                         with torch.no_grad():
@@ -60,7 +66,7 @@ class MAMLTrainer(BaseTrainer):
                     support_loss = support_loss / len(support_domains)
                     diffopt.step(support_loss)
 
-                query_batch = next(iter(domain_loaders[query_domain]))
+                query_batch = next(domain_iters[query_domain])
                 query_wav = query_batch["waveform"].squeeze(1).to(self.device)
                 query_labels = query_batch["label"].float().to(self.device)
                 with torch.no_grad():
