@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/%A_%a.out
-#SBATCH --error=logs/%A_%a.err
+#SBATCH --output=/dev/null
+#SBATCH --error=/dev/null
 #SBATCH --array=0-8%3
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
@@ -27,6 +27,9 @@ HELD_IDX=$((IDX / 3))
 
 MODEL=${MODELS[$MODEL_IDX]}
 HELD_OUT=${HELD_OUTS[$HELD_IDX]}
+
+mkdir -p logs
+exec >"logs/coral_${MODEL}_held${HELD_OUT}_${IDX}.out" 2>"logs/coral_${MODEL}_held${HELD_OUT}_${IDX}.err"
 
 echo "Running: method=coral model=${MODEL} held_out_domain=${HELD_OUT}"
 
