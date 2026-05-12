@@ -8,11 +8,7 @@
 #SBATCH --error=logs/%A_%a.err
 #SBATCH --array=0-44
 
-# TODO: fill in your cluster's module names
-# module load cuda/12.1
-# module load anaconda3/2023.09
-
-conda activate pd-dg
+module load pytorch/12.8
 
 # 45 combinations: 5 methods x 3 models x 3 held_out_domains
 METHODS=(erm difl mixup maml coral)

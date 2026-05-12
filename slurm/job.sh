@@ -7,11 +7,7 @@
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 
-# TODO: fill in your cluster's module names
-# module load cuda/12.1
-# module load anaconda3/2023.09
-
-conda activate pd-dg
+module load pytorch/12.8
 
 python scripts/train.py \
     method=${METHOD} \
