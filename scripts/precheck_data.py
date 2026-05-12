@@ -16,14 +16,41 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.data.italian_pd import ItalianPDDataset
 from src.data.mdvr_kcl import MDVRKCLDataset
 from src.data.voice_samples_ah import VoiceSamplesAHDataset
+from src.data.neurovoz import NeurovozDataset
 
 
-_DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset]
+_DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset, NeurovozDataset]
 _DOMAIN_PATHS = [
     "Italian_Parkinsons_Voice_and_Speech/italian_parkinson",
     "Mobile Device Voice Recordings at Kings College London (MDVR-KCL) from both early and advanced Parkinsons disease patients and healthy controls/Mobile Device Voice Recordings at Kings College London (MDVR-KCL) from both",
     "Voice Samples for Patients with Parkinsons Disease and Healthy Controls",
+    "neurovoz_v3/data/audios",
 ]
+
+
+_NEUROVOZ_VOWELS = {
+    "A1", "A2", "A3", "E1", "E2", "E3",
+    "I1", "I2", "I3", "O1", "O2", "O3",
+    "U1", "U2", "U3",
+}
+_NEUROVOZ_DDK = {"PATAKA"}
+_NEUROVOZ_FREE = {"FREE"}
+
+
+def _neurovoz_task_breakdown(recordings):
+    from collections import Counter
+    counts = Counter()
+    for r in recordings:
+        t = r.get("task_code", "")
+        if t in _NEUROVOZ_VOWELS:
+            counts["vowel"] += 1
+        elif t in _NEUROVOZ_DDK:
+            counts["ddk"] += 1
+        elif t in _NEUROVOZ_FREE:
+            counts["free"] += 1
+        else:
+            counts["word"] += 1
+    return dict(counts)
 
 
 def main() -> int:
@@ -75,6 +102,16 @@ def main() -> int:
 
         task_counts = Counter(r.get("task_code", "") for r in ds.recordings)
         print(f"  tasks: {dict(task_counts)}")
+
+        if cls.__name__ == "NeurovozDataset":
+            breakdown = _neurovoz_task_breakdown(ds.recordings)
+            print(
+                f"  task breakdown: "
+                f"vowel={breakdown.get('vowel', 0)}  "
+                f"word={breakdown.get('word', 0)}  "
+                f"ddk={breakdown.get('ddk', 0)}  "
+                f"free={breakdown.get('free', 0)}"
+            )
 
         print(f"  first sample: {ds.recordings[0]['path']}")
         print(f"  last sample:  {ds.recordings[-1]['path']}")

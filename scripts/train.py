@@ -14,17 +14,19 @@ from src.utils.logging import init_wandb, log_metrics, finish_wandb
 from src.data.italian_pd import ItalianPDDataset
 from src.data.mdvr_kcl import MDVRKCLDataset
 from src.data.voice_samples_ah import VoiceSamplesAHDataset
+from src.data.neurovoz import NeurovozDataset
 from src.data.multi_domain import build_loaders, build_test_loader, get_domain_datasets, subject_split, _filter_by_subjects
 from src.data.augmentation import mixup_collate_fn, default_collate_fn
 from src.models.backbone import SpeechBackbone
 from src.models.classifier import PDClassifier
 
 
-_DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset]
+_DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset, NeurovozDataset]
 _DOMAIN_PATHS = [
     "Italian_Parkinsons_Voice_and_Speech/italian_parkinson",
     "Mobile Device Voice Recordings at Kings College London (MDVR-KCL) from both early and advanced Parkinsons disease patients and healthy controls/Mobile Device Voice Recordings at Kings College London (MDVR-KCL) from both",
     "Voice Samples for Patients with Parkinsons Disease and Healthy Controls",
+    "neurovoz_v3/data/audios",
 ]
 
 

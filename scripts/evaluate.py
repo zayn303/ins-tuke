@@ -11,17 +11,19 @@ from src.utils.reproducibility import seed_everything
 from src.data.italian_pd import ItalianPDDataset
 from src.data.mdvr_kcl import MDVRKCLDataset
 from src.data.voice_samples_ah import VoiceSamplesAHDataset
+from src.data.neurovoz import NeurovozDataset
 from src.data.multi_domain import build_test_loader
 from src.models.backbone import SpeechBackbone
 from src.models.classifier import PDClassifier
 from src.evaluation.evaluator import run_eval
 
 
-_DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset]
+_DOMAIN_CLASSES = [ItalianPDDataset, MDVRKCLDataset, VoiceSamplesAHDataset, NeurovozDataset]
 _DOMAIN_PATHS = [
     "Italian_Parkinsons_Voice_and_Speech/italian_parkinson",
     "Mobile Device Voice Recordings at Kings College London (MDVR-KCL) from both early and advanced Parkinsons disease patients and healthy controls/Mobile Device Voice Recordings at Kings College London (MDVR-KCL) from both",
     "Voice Samples for Patients with Parkinsons Disease and Healthy Controls",
+    "neurovoz_v3/data/audios",
 ]
 
 
