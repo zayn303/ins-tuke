@@ -27,7 +27,7 @@ def log(msg):
         print(msg, flush=True)
 
 
-def run_combo(model, held_out, log_dir, ckpt_dir, data_root, batch_size):
+def run_combo(model, held_out, log_dir, ckpt_dir, data_root, batch_size, num_workers):
     tag = f"erm_{model}_held{held_out}"
     out_path = log_dir / f"{tag}.out"
     err_path = log_dir / f"{tag}.err"
@@ -44,6 +44,7 @@ def run_combo(model, held_out, log_dir, ckpt_dir, data_root, batch_size):
         f"checkpoint_dir={ckpt_dir}",
         "wandb_offline=true",
         f"batch_size={batch_size}",
+        f"num_workers={num_workers}",
     ]
 
     env = os.environ.copy()
@@ -79,6 +80,8 @@ def main():
                         help="parallel workers (default 1 — sequential, no GPU contention)")
     parser.add_argument("--batch-size", type=int, default=4,
                         help="batch size per combo (default 4 — low VRAM)")
+    parser.add_argument("--num-workers", type=int, default=4,
+                        help="DataLoader num_workers (default 4 — matches SLURM)")
     args = parser.parse_args()
 
     workers = min(args.workers, 12)
@@ -94,14 +97,14 @@ def main():
 
     combos = [(m, h) for h in HELD_OUTS for m in MODELS]
 
-    print(f"Smoke run: {len(combos)} combos, {workers} workers, batch_size={args.batch_size} → {log_dir}")
+    print(f"Smoke run: {len(combos)} combos, {workers} workers, batch_size={args.batch_size}, num_workers={args.num_workers} → {log_dir}")
     print("=" * 60)
 
     results = []
     seen_tags = set()
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(run_combo, m, h, log_dir, ckpt_dir, args.data_root, args.batch_size): (m, h)
+            pool.submit(run_combo, m, h, log_dir, ckpt_dir, args.data_root, args.batch_size, args.num_workers): (m, h)
             for m, h in combos
         }
         for fut in as_completed(futures):

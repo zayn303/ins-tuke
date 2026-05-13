@@ -70,6 +70,7 @@ python scripts/train.py \
     method=erm \
     model=${MODEL} \
     held_out_domain=${HELD_OUT} \
-    data_root=${DATA_ROOT:-/home/ak562fx/ins-tuke/Data} \
+    data_root=${DATA_ROOT:-/tmp/ins-data} \
     checkpoint_dir=${CKPT_DIR} \
-    wandb_offline=true
+    wandb_offline=true \
+    num_workers=4

@@ -138,28 +138,37 @@ def main(cfg: DictConfig) -> None:
 
     collate = mixup_collate_fn(cfg.get("mixup_alpha", 0.2)) if cfg.method_name == "mixup" else default_collate_fn
 
+    num_workers = cfg.get("num_workers", 0)
+    print(f"[init] building data loaders (num_workers={num_workers})...", flush=True)
     train_loader, val_loader = build_loaders(
         source_datasets,
         held_out_domain=cfg.held_out_domain,
         batch_size=cfg.batch_size,
         seed=cfg.seed,
         collate_fn=collate,
+        num_workers=num_workers,
     )
-    test_loader = build_test_loader(test_dataset, batch_size=cfg.batch_size, collate_fn=default_collate_fn)
+    test_loader = build_test_loader(test_dataset, batch_size=cfg.batch_size,
+                                    collate_fn=default_collate_fn, num_workers=num_workers)
+    print(f"[init] train={len(train_loader.dataset)} val={len(val_loader.dataset)} test={len(test_loader.dataset)} batches/epoch={len(train_loader)}", flush=True)
 
+    print(f"[init] loading backbone ({cfg.model}) → {device}...", flush=True)
     backbone = SpeechBackbone(
         cfg.model,
         freeze_backbone=cfg.freeze_backbone,
         unfreeze_top_n_layers=cfg.unfreeze_top_n_layers,
     ).to(device)
     classifier = PDClassifier().to(device)
+    print("[init] backbone loaded", flush=True)
 
     trainer = _build_trainer(cfg, backbone, classifier, device, source_datasets, pos_weight)
 
     if cfg.method_name == "maml":
         maml_domain_loaders = _build_maml_domain_loaders(source_datasets, cfg)
 
+    print("[init] init wandb...", flush=True)
     run = init_wandb(cfg)
+    print("[init] wandb ready — starting training", flush=True)
     ckpt_dir = Path(cfg.checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 

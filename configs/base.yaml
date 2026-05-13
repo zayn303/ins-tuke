@@ -24,3 +24,4 @@ segment_seconds: 10.0
 segment_stride_seconds: 5.0
 min_segment_seconds: 1.0
 feature_extractor: hf_default
+num_workers: 0

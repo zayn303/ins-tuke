@@ -1,7 +1,10 @@
 from typing import Optional
+import time
 import torch
 import torch.nn as nn
 from .base_trainer import BaseTrainer
+
+_LOG_EVERY = 50
 
 
 class ERMTrainer(BaseTrainer):
@@ -18,6 +21,8 @@ class ERMTrainer(BaseTrainer):
         self.classifier.train()
         total_loss = 0.0
         n_batches = 0
+        n_total = len(loader)
+        t_epoch = time.time()
 
         for batch in loader:
             input_values = batch["input_values"].to(self.device)
@@ -35,6 +40,10 @@ class ERMTrainer(BaseTrainer):
 
             total_loss += loss.item()
             n_batches += 1
+
+            if n_batches % _LOG_EVERY == 0:
+                elapsed = time.time() - t_epoch
+                print(f"  batch {n_batches}/{n_total} | loss={loss.item():.4f} | {elapsed:.0f}s elapsed", flush=True)
 
         mean_loss = total_loss / max(n_batches, 1)
         self.last_stats = {"label_loss": mean_loss}
