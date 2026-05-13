@@ -34,6 +34,29 @@ class DIFLTrainer(BaseTrainer):
             {"params": self.domain_discriminator.parameters(), "lr": lr, "weight_decay": weight_decay}
         )
 
+    def save_checkpoint(self, path, epoch: int, metrics) -> None:
+        from pathlib import Path
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "epoch": epoch,
+            "backbone_state": self.backbone.state_dict(),
+            "classifier_state": self.classifier.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+            "domain_discriminator_state": self.domain_discriminator.state_dict(),
+            "metrics": metrics,
+        }, path)
+
+    def load_checkpoint(self, path):
+        from pathlib import Path
+        ckpt = torch.load(Path(path), map_location=self.device)
+        self.backbone.load_state_dict(ckpt["backbone_state"])
+        self.classifier.load_state_dict(ckpt["classifier_state"])
+        self.optimizer.load_state_dict(ckpt["optimizer_state"])
+        if "domain_discriminator_state" in ckpt:
+            self.domain_discriminator.load_state_dict(ckpt["domain_discriminator_state"])
+        return ckpt
+
     def _get_lambda(self, epoch: int, total_epochs: int) -> float:
         return self.lambda_grl_max * epoch / max(total_epochs - 1, 1)
 
