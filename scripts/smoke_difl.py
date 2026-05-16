@@ -1,8 +1,9 @@
-"""Run all 12 DIFL smoke tests (1 epoch) sequentially by default.
+"""Run all 15 DIFL smoke tests (1 epoch, 3 parallel workers by default).
 
 Usage:
-    python scripts/smoke_difl.py                       # 1 worker default
-    python scripts/smoke_difl.py --workers 4           # parallel (GPU contention warning)
+    python scripts/smoke_difl.py                       # 3 workers default (one per backbone)
+    python scripts/smoke_difl.py --workers 15          # fully parallel (OOM risk on single GPU)
+    python scripts/smoke_difl.py --workers 1           # sequential
     python scripts/smoke_difl.py --data-root /home/ak562fx/ins-tuke/Data
     python scripts/smoke_difl.py --batch-size 2        # reduce VRAM further
 """
@@ -18,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 METHOD = "difl"
 MODELS = ["wav2vec2", "hubert", "wavlm"]
-HELD_OUTS = [0, 1, 2, 3]
+HELD_OUTS = [0, 1, 2, 3, 4]
 
 print_lock = threading.Lock()
 
@@ -77,15 +78,15 @@ def run_combo(model, held_out, log_dir, ckpt_dir, data_root, batch_size, num_wor
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="/home/ak562fx/ins-tuke/Data")
-    parser.add_argument("--workers", type=int, default=1,
-                        help="parallel workers (default 1 — sequential, no GPU contention)")
+    parser.add_argument("--workers", type=int, default=3,
+                        help="parallel workers (default 3 — one per backbone; use 1 for sequential)")
     parser.add_argument("--batch-size", type=int, default=4,
                         help="batch size per combo (default 4 — low VRAM)")
     parser.add_argument("--num-workers", type=int, default=4,
                         help="DataLoader num_workers (default 4 — matches SLURM)")
     args = parser.parse_args()
 
-    workers = min(args.workers, 12)
+    workers = min(args.workers, len(MODELS) * len(HELD_OUTS))
 
     if workers > 1:
         print(f"WARNING: --workers {workers} > 1; GPU contention is your responsibility")
