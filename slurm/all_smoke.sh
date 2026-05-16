@@ -7,14 +7,16 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=00:20:00
-#SBATCH --array=0-47%20
+#SBATCH --array=0-59%20
+#SBATCH --output=/dev/null
 
-# Smoke all 5 methods x 3 models x 4 held_outs = 60 variants, 1 epoch each.
+# Smoke 4 DG methods x 3 models x 5 held_outs = 60 variants, 1 epoch each.
 # MAML: epochs=1 + n_episodes_per_epoch=2 (default 100 defeats smoke purpose).
-# Submit with:
+# RUN_TS and HF_HOME auto-generated if not exported. To override:
 #   sbatch --export=ALL,RUN_TS=$(date +%Y-%m-%d_%H%M),HF_HOME=/home/ak562fx/.cache/huggingface slurm/all_smoke.sh
-: "${RUN_TS:?must export RUN_TS via sbatch --export=ALL,RUN_TS=\$(date +%Y-%m-%d_%H%M)}"
-: "${HF_HOME:?must export HF_HOME on shared FS}"
+RUN_TS="${RUN_TS:-$(date +%Y-%m-%d_%H%M)}"
+HF_HOME="${HF_HOME:-/home/ak562fx/.cache/huggingface}"
+export HF_HOME
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 
@@ -27,11 +29,11 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 METHODS=(difl mixup coral maml)
 MODELS=(wav2vec2 hubert wavlm)
-HELD_OUTS=(0 1 2 3)
+HELD_OUTS=(0 1 2 3 4)
 NUM_METHOD=${#METHODS[@]}
 NUM_MODEL=${#MODELS[@]}
 NUM_HELD=${#HELD_OUTS[@]}
-INNER=$((NUM_MODEL * NUM_HELD))   # 12
+INNER=$((NUM_MODEL * NUM_HELD))   # 15
 EXPECTED=$((NUM_METHOD * INNER - 1))  # 59
 
 IDX=${SLURM_ARRAY_TASK_ID}

@@ -7,14 +7,16 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=00:15:00
-#SBATCH --array=0-11%12
+#SBATCH --array=0-14%15
+#SBATCH --output=/dev/null
 
-# Smoke test: 1 epoch, 2 episodes per task, all 12 variants. Run before full maml_array.sh.
+# Smoke test: 1 epoch, 2 episodes per task, 15 variants (3 models x 5 held-out domains). Run before full maml_array.sh.
 # n_episodes_per_epoch overridden to 2 (default 100 would defeat the smoke purpose).
-# Submit with:
+# RUN_TS and HF_HOME auto-generated if not exported. To override:
 #   sbatch --export=ALL,RUN_TS=$(date +%Y-%m-%d_%H%M),HF_HOME=/home/ak562fx/.cache/huggingface slurm/maml_smoke.sh
-: "${RUN_TS:?must export RUN_TS via sbatch --export=ALL,RUN_TS=\$(date +%Y-%m-%d_%H%M)}"
-: "${HF_HOME:?must export HF_HOME on shared FS}"
+RUN_TS="${RUN_TS:-$(date +%Y-%m-%d_%H%M)}"
+HF_HOME="${HF_HOME:-/home/ak562fx/.cache/huggingface}"
+export HF_HOME
 
 source /home/ak562fx/ins-tuke/venv/bin/activate
 
@@ -26,7 +28,7 @@ export HF_HUB_VERBOSITY=error
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 MODELS=(wav2vec2 hubert wavlm)
-HELD_OUTS=(0 1 2 3)
+HELD_OUTS=(0 1 2 3 4)
 NUM_MODEL=${#MODELS[@]}
 NUM_HELD=${#HELD_OUTS[@]}
 EXPECTED=$((NUM_HELD * NUM_MODEL - 1))
