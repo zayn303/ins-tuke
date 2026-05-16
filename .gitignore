@@ -12,6 +12,9 @@ venv/
 # SLURM logs
 logs/
 
+#paper
+clanok/
+
 # Runtime artifacts
 checkpoints/
 outputs/
