@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=00:15:00
-#SBATCH --array=0-14%15
+#SBATCH --array=0-14%1
 #SBATCH --output=/dev/null
 
 # Smoke test: 1 epoch per task, 15 variants (3 models x 5 held-out domains). Run before full erm_array.sh.
