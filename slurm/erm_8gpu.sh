@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
-#SBATCH --time=03:00:00
+#SBATCH --time=24:00:00
 
 # Submit with:
 #   sbatch --export=ALL,RUN_TS=$(date +%Y-%m-%d_%H%M),HF_HOME=/home/ak562fx/.cache/huggingface slurm/erm_8gpu.sh
@@ -52,9 +52,13 @@ run_one() {
 }
 
 # 15 jobs total: 5 folds × 3 models
-# Round 1 (8 jobs): all 5 WavLM first (slow ~70 min) + 3 fast
-# Round 2 (7 jobs): remaining fast jobs (~40 min)
-# Total ≈ 110 min vs ~12h serial
+# Smoke run 2026-05-17_1934_job6193 epoch timing (40 epochs):
+#   WavLM   600–738 s/ep × 40 = ~8.2h  ← Round 1 bottleneck
+#   wav2vec2 200–330 s/ep × 40 = ~3.7h
+#   HuBERT  140–225 s/ep × 40 = ~2.5h
+# Round 1 (8 jobs): 5×WavLM + 3×wav2vec2 → wall ~8.2h
+# Round 2 (7 jobs): 2×wav2vec2 + 5×HuBERT → wall ~2.7h
+# Total ≈ 11h; 24h limit gives 2× buffer
 
 JOBS=(
     # Round 1 — indices 0-7 on GPUs 0-7

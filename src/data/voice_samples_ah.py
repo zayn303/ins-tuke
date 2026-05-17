@@ -10,6 +10,9 @@ class VoiceSamplesAHDataset(PDDataset):
     domain_id = 2
 
     def _load_samples(self) -> None:
+        # HC=0 / PD=1 — consistent with project convention.
+        # AUC < 0.5 on LODO held2 is expected domain shift (sustained /AH/
+        # phonation vs. connected speech in other domains), not a label error.
         label_dirs = {
             "HC_AH": 0,
             "PD_AH": 1,
