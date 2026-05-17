@@ -6,8 +6,8 @@
 #SBATCH --gpus-per-task=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=01:00:00
-#SBATCH --array=0-11%9
+#SBATCH --time=02:30:00
+#SBATCH --array=0-14%1
 
 # Submit with:
 #   sbatch --export=ALL,RUN_TS=$(date +%Y-%m-%d_%H%M),HF_HOME=/home/ak562fx/.cache/huggingface slurm/erm_array.sh
@@ -24,7 +24,7 @@ export HF_HUB_VERBOSITY=error
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 MODELS=(wav2vec2 hubert wavlm)
-HELD_OUTS=(0 1 2 3)
+HELD_OUTS=(0 1 2 3 4)
 NUM_MODEL=${#MODELS[@]}
 NUM_HELD=${#HELD_OUTS[@]}
 EXPECTED=$((NUM_HELD * NUM_MODEL - 1))
@@ -70,7 +70,7 @@ python scripts/train.py \
     method=erm \
     model=${MODEL} \
     held_out_domain=${HELD_OUT} \
-    data_root=${DATA_ROOT:-/tmp/ins-data} \
+    data_root=${DATA_ROOT:-/home/ak562fx/ins-tuke/Data} \
     checkpoint_dir=${CKPT_DIR} \
     wandb_offline=true \
     num_workers=4
