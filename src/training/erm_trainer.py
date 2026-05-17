@@ -9,8 +9,12 @@ _LOG_EVERY = 50
 
 class ERMTrainer(BaseTrainer):
     def __init__(self, backbone, classifier, lr, weight_decay, device,
-                 pos_weight: Optional[torch.Tensor] = None):
-        super().__init__(backbone, classifier, lr, weight_decay, device)
+                 pos_weight: Optional[torch.Tensor] = None,
+                 lr_schedule: str = "none", lr_warmup_epochs: int = 2,
+                 lr_min: float = 1e-6, total_epochs: int = 40):
+        super().__init__(backbone, classifier, lr, weight_decay, device,
+                         lr_schedule=lr_schedule, lr_warmup_epochs=lr_warmup_epochs,
+                         lr_min=lr_min, total_epochs=total_epochs)
         pw = pos_weight.to(device) if pos_weight is not None else None
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=pw)
 

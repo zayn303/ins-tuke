@@ -90,3 +90,10 @@ class PCGITADataset(PDDataset):
                 f"WARN PCGITADataset: {n_unknown} files skipped (unknown label)",
                 file=sys.stderr,
             )
+        n_total_seen = len(self.recordings) + n_unknown
+        if n_total_seen > 0 and n_unknown / n_total_seen > 0.10:
+            raise RuntimeError(
+                f"PCGITADataset: {n_unknown}/{n_total_seen} files "
+                f"({100 * n_unknown / n_total_seen:.1f}%) have unknown labels — "
+                f"check _HC_TOKENS/_PD_TOKENS in src/data/pc_gita.py"
+            )

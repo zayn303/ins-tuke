@@ -23,6 +23,16 @@ class SpeechBackbone(nn.Module):
 
             if unfreeze_top_n_layers > 0:
                 layers = self.model.encoder.layers
+                n_layers = len(layers)
+                assert n_layers >= unfreeze_top_n_layers, (
+                    f"{model_name} has only {n_layers} encoder layers, "
+                    f"cannot unfreeze {unfreeze_top_n_layers}"
+                )
+                print(
+                    f"[backbone] {model_name}: {n_layers} encoder layers, "
+                    f"unfreezing top {unfreeze_top_n_layers}",
+                    flush=True,
+                )
                 for layer in layers[-unfreeze_top_n_layers:]:
                     for param in layer.parameters():
                         param.requires_grad = True

@@ -7,9 +7,12 @@ model: wav2vec2            # wav2vec2 | hubert | wavlm
 max_duration: 10.0
 sample_rate: 16000
 batch_size: 16
-epochs: 25
+epochs: 40
 lr: 1.0e-4
 weight_decay: 1.0e-4
+lr_schedule: cosine
+lr_warmup_epochs: 2
+lr_min: 1.0e-6
 freeze_backbone: true
 unfreeze_top_n_layers: 0
 held_out_domain: 0         # 0=italian_pd | 1=mdvr_kcl | 2=voice_samples_ah | 3=neurovoz | 4=pc_gita

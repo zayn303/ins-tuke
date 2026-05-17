@@ -64,7 +64,11 @@ def _build_trainer(cfg: DictConfig, backbone, classifier, device, source_dataset
     if method == "erm":
         from src.training.erm_trainer import ERMTrainer
         return ERMTrainer(backbone, classifier, lr=cfg.lr, weight_decay=cfg.weight_decay,
-                          device=device, pos_weight=pos_weight)
+                          device=device, pos_weight=pos_weight,
+                          lr_schedule=cfg.get("lr_schedule", "none"),
+                          lr_warmup_epochs=int(cfg.get("lr_warmup_epochs", 2)),
+                          lr_min=float(cfg.get("lr_min", 1e-6)),
+                          total_epochs=int(cfg.epochs))
     elif method == "difl":
         from src.training.difl_trainer import DIFLTrainer
         return DIFLTrainer(
@@ -197,6 +201,11 @@ def main(cfg: DictConfig) -> None:
         log_payload.update({f"train/{k}": v for k, v in trainer.last_stats.items()})
         log_payload.update({f"val/{k}": v for k, v in val_metrics.items()})
         log_metrics(run, log_payload, step=epoch + 1)
+
+        if trainer.scheduler is not None:
+            trainer.scheduler.step()
+            current_lr = trainer.optimizer.param_groups[0]["lr"]
+            print(f"  lr={current_lr:.2e}")
 
         val_uar = val_metrics.get("uar", float("nan"))
         domain_uar_str = "  ".join(
