@@ -13,6 +13,7 @@ def _task_code(name: str) -> str:
 
 class ItalianPDDataset(PDDataset):
     domain_id = 0
+    EXCLUDED_TASKS = frozenset({"VA", "VE", "VI", "VO", "VU"})
 
     _HC_FRAGMENTS = ("Healthy",)
     _PD_FRAGMENTS = ("Parkinson",)

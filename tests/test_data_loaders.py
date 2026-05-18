@@ -28,7 +28,7 @@ class TestItalianPDDataset:
 
     def test_hc_label_elderly(self, tmp_path):
         subj = tmp_path / "22 Elderly Healthy Control" / "Maria G"
-        make_wav(subj / "VA1.wav")
+        make_wav(subj / "PR1.wav")
         from src.data.italian_pd import ItalianPDDataset
         ds = ItalianPDDataset(tmp_path)
         sample = ds[0]
@@ -72,7 +72,7 @@ class TestItalianPDDataset:
             make_wav(subj / f"{task}.wav")
         from src.data.italian_pd import ItalianPDDataset
         ds = ItalianPDDataset(tmp_path)
-        assert len(ds) == 3
+        assert len(ds) == 2  # VA1 filtered (sustained vowel)
         assert all(s["subject_id"] == "Subj1" for s in ds)
 
 

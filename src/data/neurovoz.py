@@ -33,6 +33,13 @@ def _parse_filename(name: str):
 
 class NeurovozDataset(PDDataset):
     domain_id = 3
+    EXCLUDED_TASKS = frozenset({
+        "A1", "A2", "A3",
+        "E1", "E2", "E3",
+        "I1", "I2", "I3",
+        "O1", "O2", "O3",
+        "U1", "U2", "U3",
+    })
 
     _METADATA_REL = {
         "HC": "../metadata/metadata_hc.csv",

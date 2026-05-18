@@ -1,11 +1,10 @@
-"""Run all 15 Mixup smoke tests (1 epoch, 3 parallel workers by default).
+"""Run all 12 DIFL smoke tests (1 epoch).
 
 Usage:
-    python scripts/smoke_mixup.py                       # 3 workers default (one per backbone)
-    python scripts/smoke_mixup.py --workers 15          # fully parallel (OOM risk on single GPU)
-    python scripts/smoke_mixup.py --workers 1           # sequential
+    python scripts/smoke_mixup.py
+    python scripts/smoke_mixup.py --workers 1
     python scripts/smoke_mixup.py --data-root /home/ak562fx/ins-tuke/Data
-    python scripts/smoke_mixup.py --batch-size 2        # reduce VRAM further
+    python scripts/smoke_mixup.py --batch-size 2
 """
 import argparse
 import os
@@ -17,9 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-METHOD = "mixup"
 MODELS = ["wav2vec2", "hubert", "wavlm"]
-HELD_OUTS = [0, 1, 2, 3, 4]
+HELD_OUTS = [0, 1, 3, 4]
 
 print_lock = threading.Lock()
 
@@ -30,115 +28,77 @@ def log(msg):
 
 
 def run_combo(model, held_out, log_dir, ckpt_dir, data_root, batch_size, num_workers):
-    tag = f"{METHOD}_{model}_held{held_out}"
-    out_path = log_dir / f"{tag}.out"
-    err_path = log_dir / f"{tag}.err"
-
-    log(f"[{tag}] start")
-
+    tag = f"mixup_{model}_held{held_out}"
     cmd = [
         sys.executable, "scripts/train.py",
-        f"method={METHOD}",
+        "method=mixup",
         f"model={model}",
         f"held_out_domain={held_out}",
         "epochs=1",
+        "unfreeze_top_n_layers=0",
+        "mixup_alpha=0.2",
         f"data_root={data_root}",
         f"checkpoint_dir={ckpt_dir}",
         "wandb_offline=true",
         f"batch_size={batch_size}",
         f"num_workers={num_workers}",
     ]
-
     env = os.environ.copy()
     env["TRANSFORMERS_OFFLINE"] = "1"
-
-    proc = subprocess.Popen(
-        cmd, cwd=ROOT,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, env=env,
-    )
+    log(f"[{tag}] start")
+    proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
     stdout, stderr = proc.communicate()
-
-    out_path.write_text(stdout)
-    err_path.write_text(stderr)
-
+    (log_dir / f"{tag}.out").write_text(stdout)
+    (log_dir / f"{tag}.err").write_text(stderr)
     if proc.returncode == 0:
         status = "PASS"
     elif "OutOfMemoryError" in stderr or "CUDA out of memory" in stderr:
         status = "FAIL(OOM)"
     else:
         status = f"FAIL(exit {proc.returncode})"
-
-    ok = proc.returncode == 0
     log(f"[{tag}] {status}")
-
-    return tag, ok, status
+    return tag, proc.returncode == 0, status
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="/home/ak562fx/ins-tuke/Data")
-    parser.add_argument("--workers", type=int, default=3,
-                        help="parallel workers (default 3 — one per backbone; use 1 for sequential)")
-    parser.add_argument("--batch-size", type=int, default=4,
-                        help="batch size per combo (default 4 — low VRAM)")
-    parser.add_argument("--num-workers", type=int, default=4,
-                        help="DataLoader num_workers (default 4 — matches SLURM)")
+    parser.add_argument("--workers", type=int, default=3)
+    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--num-workers", type=int, default=4)
     args = parser.parse_args()
-
     workers = min(args.workers, len(MODELS) * len(HELD_OUTS))
-
-    if workers > 1:
-        print(f"WARNING: --workers {workers} > 1; GPU contention is your responsibility")
-
     ts = datetime.now().strftime("%Y-%m-%d_%H%M")
-    log_dir = ROOT / "logs" / f"{ts}_{METHOD}_smoke"
-    ckpt_dir = ROOT / "checkpoints" / f"{ts}_{METHOD}_smoke"
+    log_dir = ROOT / "logs" / f"{ts}_mixup_smoke"
+    ckpt_dir = ROOT / "checkpoints" / f"{ts}_mixup_smoke"
     log_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-
     combos = [(m, h) for h in HELD_OUTS for m in MODELS]
-
-    print(f"Smoke run: {len(combos)} combos, {workers} workers, batch_size={args.batch_size}, num_workers={args.num_workers} → {log_dir}")
+    print(f"Smoke run: {len(combos)} combos, {workers} workers → {log_dir}")
     print("=" * 60)
-
     results = []
     seen_tags = set()
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {
-            pool.submit(run_combo, m, h, log_dir, ckpt_dir, args.data_root, args.batch_size, args.num_workers): (m, h)
-            for m, h in combos
-        }
+        futures = {pool.submit(run_combo, m, h, log_dir, ckpt_dir, args.data_root, args.batch_size, args.num_workers): (m, h) for m, h in combos}
         for fut in as_completed(futures):
             try:
                 tag, ok, status = fut.result()
-                results.append((tag, ok, status))
-                seen_tags.add(tag)
             except Exception as e:
                 m, h = futures[fut]
-                tag = f"{METHOD}_{m}_held{h}"
-                results.append((tag, False, f"ERROR({repr(e)})"))
-                seen_tags.add(tag)
-
-    expected = {f"{METHOD}_{m}_held{h}" for h in HELD_OUTS for m in MODELS}
-    for tag in sorted(expected - seen_tags):
+                tag = f"mixup_{m}_held{h}"
+                ok, status = False, f"ERROR({repr(e)})"
+            results.append((tag, ok, status))
+            seen_tags.add(tag)
+    for tag in sorted({f"mixup_{m}_held{h}" for h in HELD_OUTS for m in MODELS} - seen_tags):
         results.append((tag, False, "ERROR(missing)"))
-
     results.sort(key=lambda x: x[0])
-
     print("\n" + "=" * 60)
-    print(f"Results ({log_dir.name}):")
     failed = []
     for tag, ok, status in results:
         print(f"  {status:20s}  {tag}")
         if not ok:
             failed.append(tag)
-
     print()
-    if any(s == "FAIL(OOM)" for _, _, s in results):
-        print("HINT: OOM detected — rerun with --workers 1 or reduce --batch-size")
-        print()
-
     if failed:
         print(f"FAILED: {len(failed)}/{len(combos)}")
         sys.exit(1)

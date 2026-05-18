@@ -25,11 +25,11 @@ class TestGetDomainDatasetsValidation:
             get_domain_datasets(cfg("foo"), _make_datasets(4))
 
     def test_out_of_range_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
+        with pytest.raises(ValueError, match="not in registered domains"):
             get_domain_datasets(cfg(7), _make_datasets(4))
 
     def test_negative_raises(self):
-        with pytest.raises(ValueError, match="out of range"):
+        with pytest.raises(ValueError, match="not in registered domains"):
             get_domain_datasets(cfg(-1), _make_datasets(4))
 
     def test_valid_index_0(self):

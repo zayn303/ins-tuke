@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 
 class PDDataset(Dataset, ABC):
     domain_id: int
+    EXCLUDED_TASKS: frozenset = frozenset()
 
     def __init__(
         self,
@@ -32,7 +33,15 @@ class PDDataset(Dataset, ABC):
         self.segments: List[Dict[str, Any]] = []
 
         self._load_samples()
+        self._apply_task_filter()
         self._build_segment_manifest()
+
+    def _apply_task_filter(self) -> None:
+        if self.EXCLUDED_TASKS:
+            self.recordings = [
+                r for r in self.recordings
+                if r.get("task_code", "") not in self.EXCLUDED_TASKS
+            ]
 
     @abstractmethod
     def _load_samples(self) -> None:

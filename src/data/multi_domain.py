@@ -87,9 +87,10 @@ def get_domain_datasets(cfg, all_datasets: List) -> Tuple[List, object]:
         held_out = int(raw)
     except (TypeError, ValueError):
         raise ValueError(f"held_out_domain must be integer (got {raw!r})")
-    n = len(all_datasets)
-    if not (0 <= held_out < n):
-        raise ValueError(f"held_out_domain={held_out} out of range [0,{n})")
+    domain_map = {ds.domain_id: ds for ds in all_datasets}
+    if held_out not in domain_map:
+        available = sorted(domain_map)
+        raise ValueError(f"held_out_domain={held_out} not in registered domains {available}")
     source = [ds for ds in all_datasets if ds.domain_id != held_out]
-    test_ds = all_datasets[held_out]
+    test_ds = domain_map[held_out]
     return source, test_ds

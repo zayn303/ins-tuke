@@ -45,6 +45,7 @@ def _task_code(parts):
 
 class PCGITADataset(PDDataset):
     domain_id = 4
+    EXCLUDED_TASKS = frozenset({"vowel_A", "vowel_E", "vowel_I", "vowel_O", "vowel_U"})
 
     def _load_samples(self) -> None:
         root = self.root
